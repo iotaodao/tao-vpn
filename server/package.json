@@ -1,0 +1,23 @@
+{
+  "name": "tao-vpn-server",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node src/migrate.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/rate-limit": "^10.1.1",
+    "@fastify/static": "^8.0.3",
+    "better-sqlite3": "^11.3.0",
+    "fastify": "^5.1.0",
+    "grammy": "^1.30.0",
+    "jose": "^5.9.6",
+    "nanoid": "^5.0.9",
+    "nodemailer": "^6.9.16",
+    "web-push": "^3.6.7"
+  }
+}

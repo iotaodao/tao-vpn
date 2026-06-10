@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+*.log
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+README.md
+server/data
+server/src/public

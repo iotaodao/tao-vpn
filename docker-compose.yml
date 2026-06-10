@@ -1,0 +1,42 @@
+services:
+  tao-vpn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tao-vpn
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - tao_data:/app/data
+    environment:
+      # --- Core ---
+      PORT: 8080
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      PUBLIC_URL: ${PUBLIC_URL:-https://vpn.taodev.net}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+
+      # --- Web Push (npx web-push generate-vapid-keys) ---
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@taodev.net}
+
+      # --- SMS (MTS Exolve) ---
+      EXOLVE_API_TOKEN: ${EXOLVE_API_TOKEN:-}
+      EXOLVE_SENDER: ${EXOLVE_SENDER:-TAO_VPN}
+
+      # --- Email SMTP ---
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-TAO VPN <noreply@taodev.net>}
+
+      # --- Telegram bot ---
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-TaoVPNBot}
+
+volumes:
+  tao_data:
