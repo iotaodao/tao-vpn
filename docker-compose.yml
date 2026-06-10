@@ -11,9 +11,17 @@ services:
       - ./data:/app/data
     env_file:
       - .env
+    networks:
+      - default
+      - cloudflared
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9797/api/health"]
       interval: 30s
       timeout: 5s
       start_period: 15s
       retries: 3
+
+networks:
+  cloudflared:
+    external: true
+    name: installer_default
