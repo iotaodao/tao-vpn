@@ -36,7 +36,7 @@ services:
 
       # --- Telegram bot ---
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-TaoVPNBot}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-taovpn_bot}
 
 volumes:
   tao_data:
