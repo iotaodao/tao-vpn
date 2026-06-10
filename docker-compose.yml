@@ -20,7 +20,7 @@ services:
       # --- Web Push (npx web-push generate-vapid-keys) ---
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@taodev.net}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:iotaovpn@gmail.com}
 
       # --- SMS (MTS Exolve) ---
       EXOLVE_API_TOKEN: ${EXOLVE_API_TOKEN:-}
@@ -32,7 +32,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-TAO VPN <noreply@taodev.net>}
+      SMTP_FROM: ${SMTP_FROM:-TAO VPN <iotaovpn@gmail.com>}
 
       # --- Telegram bot ---
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
