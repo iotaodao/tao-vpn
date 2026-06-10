@@ -24,13 +24,13 @@ RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=9797
 ENV HOST=0.0.0.0
 ENV DB_PATH=/app/data/tao.db
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:9797/api/health || exit 1
 
 CMD ["node", "src/index.js"]
