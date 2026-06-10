@@ -65,7 +65,7 @@ function initStatements() {
 
 export default async function adminRoutes(fastify) {
   // 3. Инициализируем запросы перед обработкой роутов
-  fastify.addHook("onRequest", async () => {
+ // fastify.addHook("onRequest", async () => {
     initStatements();
   });
 
