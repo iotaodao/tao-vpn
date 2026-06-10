@@ -1,3 +1,4 @@
+
 import webpush from "web-push";
 import { db, now } from "../db.js";
 
@@ -11,26 +12,42 @@ if (PUB && PRIV) {
   console.log("[push] VAPID keys not set — push disabled. Generate with: npx web-push generate-vapid-keys");
 }
 
-const allSubs = db.prepare("SELECT * FROM push_subscriptions");
-const subsForUser = db.prepare("SELECT * FROM push_subscriptions WHERE user_id = ?");
-const markOk = db.prepare("UPDATE push_subscriptions SET last_ok_at = ?, failures = 0 WHERE id = ?");
-const markFail = db.prepare("UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?");
-const removeSub = db.prepare("DELETE FROM push_subscriptions WHERE id = ?");
+// 1. Оставляем только пустые переменные
+let allSubs;
+let subsForUser;
+let markOk;
+let markFail;
+let removeSub;
+
+// 2. Инициализируем только при первом реальном вызове
+function initStatements() {
+  if (allSubs) return;
+  
+  allSubs = db.prepare("SELECT * FROM push_subscriptions");
+  subsForUser = db.prepare("SELECT * FROM push_subscriptions WHERE user_id = ?");
+  markOk = db.prepare("UPDATE push_subscriptions SET last_ok_at = ?, failures = 0 WHERE id = ?");
+  markFail = db.prepare("UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?");
+  removeSub = db.prepare("DELETE FROM push_subscriptions WHERE id = ?");
+}
 
 export function publicKey() { return PUB; }
 
 export async function sendToUser(userId, payload) {
+  initStatements(); // Подготавливаем базу перед запросом
   return sendToList(subsForUser.all(userId), payload);
 }
 
 export async function sendBroadcast(payload) {
+  initStatements(); // Подготавливаем базу перед запросом
   return sendToList(allSubs.all(), payload);
 }
 
 async function sendToList(subs, payload) {
   if (!PUB || !PRIV) return { sent: 0, removed: 0, skipped: subs.length };
+  
   const body = JSON.stringify(payload);
   let sent = 0, removed = 0;
+  
   await Promise.all(subs.map(async (s) => {
     try {
       await webpush.sendNotification(
