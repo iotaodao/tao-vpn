@@ -2,25 +2,35 @@ import { nanoid } from "nanoid";
 import { db, now } from "../db.js";
 import { signSession } from "./jwt.js";
 
-// Look up invite by any identity field
-const findInviteByTg    = db.prepare("SELECT * FROM invites WHERE telegram_id = ? AND used_by IS NULL");
-const findInviteByPhone = db.prepare("SELECT * FROM invites WHERE phone = ? AND used_by IS NULL");
-const findInviteByEmail = db.prepare("SELECT * FROM invites WHERE email = ? AND used_by IS NULL");
-const markInviteUsed    = db.prepare("UPDATE invites SET used_by = ? WHERE id = ?");
+// Объявляем переменные для SQL-запросов
+let findInviteByTg, findInviteByPhone, findInviteByEmail, markInviteUsed;
+let findUserByTg, findUserByPhone, findUserByEmail, insertUser, insertSession, updateUserSeen;
 
-// User lookup
-const findUserByTg    = db.prepare("SELECT * FROM users WHERE telegram_id = ?");
-const findUserByPhone = db.prepare("SELECT * FROM users WHERE phone = ?");
-const findUserByEmail = db.prepare("SELECT * FROM users WHERE email = ?");
-const insertUser = db.prepare(`
-  INSERT INTO users (id, name, telegram_id, telegram_handle, phone, email, primary_method, is_admin, is_active, created_at)
-  VALUES (@id, @name, @telegram_id, @telegram_handle, @phone, @email, @primary_method, @is_admin, 1, @created_at)
-`);
-const insertSession = db.prepare(`
-  INSERT INTO sessions (id, user_id, device_label, user_agent, ip, created_at, last_seen_at, expires_at)
-  VALUES (@id, @user_id, @device_label, @user_agent, @ip, @created_at, @last_seen_at, @expires_at)
-`);
-const updateUserSeen = db.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?");
+// Функция ленивой инициализации (выполнится только один раз)
+function initStatements() {
+  if (findInviteByTg) return;
+
+  findInviteByTg    = db.prepare("SELECT * FROM invites WHERE telegram_id = ? AND used_by IS NULL");
+  findInviteByPhone = db.prepare("SELECT * FROM invites WHERE phone = ? AND used_by IS NULL");
+  findInviteByEmail = db.prepare("SELECT * FROM invites WHERE email = ? AND used_by IS NULL");
+  markInviteUsed    = db.prepare("UPDATE invites SET used_by = ? WHERE id = ?");
+
+  findUserByTg    = db.prepare("SELECT * FROM users WHERE telegram_id = ?");
+  findUserByPhone = db.prepare("SELECT * FROM users WHERE phone = ?");
+  findUserByEmail = db.prepare("SELECT * FROM users WHERE email = ?");
+  
+  insertUser = db.prepare(`
+    INSERT INTO users (id, name, telegram_id, telegram_handle, phone, email, primary_method, is_admin, is_active, created_at)
+    VALUES (@id, @name, @telegram_id, @telegram_handle, @phone, @email, @primary_method, @is_admin, 1, @created_at)
+  `);
+  
+  insertSession = db.prepare(`
+    INSERT INTO sessions (id, user_id, device_label, user_agent, ip, created_at, last_seen_at, expires_at)
+    VALUES (@id, @user_id, @device_label, @user_agent, @ip, @created_at, @last_seen_at, @expires_at)
+  `);
+  
+  updateUserSeen = db.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?");
+}
 
 const SESSION_TTL_DAYS = 90;
 
@@ -30,6 +40,9 @@ const SESSION_TTL_DAYS = 90;
  * method: 'telegram' | 'phone' | 'email'
  */
 export function loginOrRegister({ identity, method, deviceLabel, userAgent, ip }) {
+  // Инициализируем запросы при первом вызове функции
+  initStatements();
+
   // 1) Existing user by this identity
   let user;
   if (method === "telegram") user = findUserByTg.get(identity.telegram_id);
@@ -42,6 +55,7 @@ export function loginOrRegister({ identity, method, deviceLabel, userAgent, ip }
     if (method === "telegram") invite = findInviteByTg.get(identity.telegram_id);
     else if (method === "phone") invite = findInviteByPhone.get(identity.phone);
     else if (method === "email") invite = findInviteByEmail.get(identity.email);
+    
     if (!invite) {
       const err = new Error("no_invite");
       err.statusCode = 403;
@@ -60,10 +74,12 @@ export function loginOrRegister({ identity, method, deviceLabel, userAgent, ip }
       is_admin: 0,
       created_at: now(),
     };
+    
     db.transaction(() => {
       insertUser.run(userRow);
       markInviteUsed.run(userId, invite.id);
     })();
+    
     user = { ...userRow, is_active: 1, last_seen_at: null };
   }
 
