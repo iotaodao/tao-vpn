@@ -71,8 +71,8 @@ export async function startBot() {
     drop_pending_updates: true,
     onStart: (botInfo) => console.log(`[tgbot] started as @${botInfo.username}`)
   }).catch((err) => {
-    console.error("[tgbot] Fatal error on start:", err);
-    setTimeout(() => process.exit(1), 5000);
+    console.error("[tgbot] Bot failed to start (non-fatal):", err.message);
+    // Сервер продолжает работать без бота
   });
 }
 
