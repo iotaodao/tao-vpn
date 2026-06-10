@@ -14,7 +14,7 @@ services:
       PORT: 8080
       HOST: 0.0.0.0
       NODE_ENV: production
-      PUBLIC_URL: ${PUBLIC_URL:-https://vpn.taodev.net}
+      PUBLIC_URL: ${PUBLIC_URL:-https://taovpn.com}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
 
       # --- Web Push (npx web-push generate-vapid-keys) ---
