@@ -2,45 +2,73 @@ import { nanoid } from "nanoid";
 import { db, now } from "../db.js";
 import * as push from "../services/webpush.js";
 
-const upsertUrgent = db.prepare(`
-  UPDATE urgent_message
-  SET active = @active, type = @type, title = @title, body = @body,
-      cta_label = @cta_label, cta_tab = @cta_tab, updated_at = @updated_at
-  WHERE id = 1
-`);
+// 1. Оставляем только пустые переменные для запросов
+let upsertUrgent;
+let insertServer;
+let updateServer;
+let deleteServer;
+let insertConfig;
+let deactivateConfig;
+let updateConfigUri;
+let insertNotification;
+let insertInvite;
+let listInvites;
+let listUsers;
 
-const insertServer = db.prepare(`
-  INSERT INTO servers (id, name, location, protocol, status, latency_ms, load_pct, position, updated_at)
-  VALUES (@id, @name, @location, @protocol, @status, @latency_ms, @load_pct, @position, @updated_at)
-`);
-const updateServer = db.prepare(`
-  UPDATE servers SET name = @name, location = @location, protocol = @protocol,
-    status = @status, latency_ms = @latency_ms, load_pct = @load_pct,
-    position = @position, updated_at = @updated_at
-  WHERE id = @id
-`);
-const deleteServer = db.prepare("DELETE FROM servers WHERE id = ?");
+// 2. Функция отложенной инициализации
+function initStatements() {
+  if (upsertUrgent) return; // Защита от повторной компиляции
 
-const insertConfig = db.prepare(`
-  INSERT INTO configs (id, user_id, server_id, name, uri, is_active, created_at, updated_at)
-  VALUES (@id, @user_id, @server_id, @name, @uri, 1, @t, @t)
-`);
-const deactivateConfig = db.prepare("UPDATE configs SET is_active = 0 WHERE id = ?");
-const updateConfigUri = db.prepare("UPDATE configs SET uri = ?, updated_at = ? WHERE id = ?");
+  upsertUrgent = db.prepare(`
+    UPDATE urgent_message
+    SET active = @active, type = @type, title = @title, body = @body,
+        cta_label = @cta_label, cta_tab = @cta_tab, updated_at = @updated_at
+    WHERE id = 1
+  `);
 
-const insertNotification = db.prepare(`
-  INSERT INTO notifications (id, type, title, body, audience, created_at, created_by)
-  VALUES (@id, @type, @title, @body, @audience, @created_at, @created_by)
-`);
+  insertServer = db.prepare(`
+    INSERT INTO servers (id, name, location, protocol, status, latency_ms, load_pct, position, updated_at)
+    VALUES (@id, @name, @location, @protocol, @status, @latency_ms, @load_pct, @position, @updated_at)
+  `);
+  
+  updateServer = db.prepare(`
+    UPDATE servers SET name = @name, location = @location, protocol = @protocol,
+      status = @status, latency_ms = @latency_ms, load_pct = @load_pct,
+      position = @position, updated_at = @updated_at
+    WHERE id = @id
+  `);
+  
+  deleteServer = db.prepare("DELETE FROM servers WHERE id = ?");
 
-const insertInvite = db.prepare(`
-  INSERT INTO invites (id, name, telegram_id, phone, email, created_at)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-const listInvites = db.prepare("SELECT * FROM invites ORDER BY created_at DESC");
-const listUsers = db.prepare("SELECT id, name, primary_method, telegram_handle, phone, email, is_admin, is_active, created_at, last_seen_at FROM users ORDER BY created_at DESC");
+  insertConfig = db.prepare(`
+    INSERT INTO configs (id, user_id, server_id, name, uri, is_active, created_at, updated_at)
+    VALUES (@id, @user_id, @server_id, @name, @uri, 1, @t, @t)
+  `);
+  
+  deactivateConfig = db.prepare("UPDATE configs SET is_active = 0 WHERE id = ?");
+  updateConfigUri = db.prepare("UPDATE configs SET uri = ?, updated_at = ? WHERE id = ?");
+
+  insertNotification = db.prepare(`
+    INSERT INTO notifications (id, type, title, body, audience, created_at, created_by)
+    VALUES (@id, @type, @title, @body, @audience, @created_at, @created_by)
+  `);
+
+  insertInvite = db.prepare(`
+    INSERT INTO invites (id, name, telegram_id, phone, email, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  
+  listInvites = db.prepare("SELECT * FROM invites ORDER BY created_at DESC");
+  
+  listUsers = db.prepare("SELECT id, name, primary_method, telegram_handle, phone, email, is_admin, is_active, created_at, last_seen_at FROM users ORDER BY created_at DESC");
+}
 
 export default async function adminRoutes(fastify) {
+  // 3. Инициализируем запросы перед обработкой роутов
+  fastify.addHook("onRequest", async () => {
+    initStatements();
+  });
+
   fastify.addHook("preHandler", fastify.requireAdmin);
 
   // --- Urgent banner ---
