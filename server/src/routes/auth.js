@@ -9,17 +9,31 @@ import { loginOrRegister, issueToken } from "../auth/users.js";
 const OTP_TTL_MS = 15 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
-const insertOtp = db.prepare(`
-  INSERT INTO otp_codes (id, channel, target, code_hash, expires_at, created_at)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-const findOtp = db.prepare(`
-  SELECT * FROM otp_codes
-  WHERE channel = ? AND target = ? AND consumed_at IS NULL AND expires_at > ?
-  ORDER BY created_at DESC LIMIT 1
-`);
-const consumeOtp = db.prepare(`UPDATE otp_codes SET consumed_at = ? WHERE id = ?`);
-const incOtpAttempts = db.prepare(`UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?`);
+// Объявляем переменные для ленивой инициализации
+let insertOtp;
+let findOtp;
+let consumeOtp;
+let incOtpAttempts;
+let revokeSession;
+
+function initStatements() {
+  if (insertOtp) return; // Убеждаемся, что инициализируем только 1 раз
+
+  insertOtp = db.prepare(`
+    INSERT INTO otp_codes (id, channel, target, code_hash, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  
+  findOtp = db.prepare(`
+    SELECT * FROM otp_codes
+    WHERE channel = ? AND target = ? AND consumed_at IS NULL AND expires_at > ?
+    ORDER BY created_at DESC LIMIT 1
+  `);
+  
+  consumeOtp = db.prepare(`UPDATE otp_codes SET consumed_at = ? WHERE id = ?`);
+  incOtpAttempts = db.prepare(`UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?`);
+  revokeSession = db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ?`);
+}
 
 const hash = (s) => createHash("sha256").update(s).digest("hex");
 const safeEq = (a, b) => {
@@ -64,6 +78,12 @@ function serializeUser(u) {
 }
 
 export default async function authRoutes(fastify) {
+  
+  // Добавляем хук, чтобы инициализировать БД перед любым запросом к этим роутам
+  fastify.addHook('onRequest', async (request, reply) => {
+     initStatements();
+  });
+
   // --- PHONE ---
   fastify.post("/phone/request", async (req, reply) => {
     const phone = normalizePhone(req.body?.phone);
@@ -153,7 +173,8 @@ export default async function authRoutes(fastify) {
   });
 
   fastify.post("/logout", { preHandler: fastify.requireAuth }, async (req) => {
-    db.prepare("UPDATE sessions SET revoked_at = ? WHERE id = ?").run(now(), req.session.id);
+    // Используем подготовленный запрос вместо db.prepare
+    revokeSession.run(now(), req.session.id);
     return { ok: true };
   });
 }
