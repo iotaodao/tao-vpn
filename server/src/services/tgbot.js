@@ -2,36 +2,25 @@ import { Bot } from "grammy";
 import { nanoid } from "nanoid";
 import { db, now } from "../db.js";
 
-// Bot authenticates Telegram users for the web app.
-// Flow: web frontend opens a deep link to the bot with a one-time `state`.
-// User taps /start <state> in the bot, bot writes mapping state→telegram_id
-// to tg_auth table. Frontend polls /api/auth/telegram/poll?state=... and
-// receives the telegram identity once confirmed.
-
+// Создание таблицы для хранения состояний авторизации
 db.exec(`
   CREATE TABLE IF NOT EXISTS tg_auth (
-    state         TEXT PRIMARY KEY,
-    telegram_id   TEXT,
-    telegram_name TEXT,
-    telegram_user TEXT,
-    confirmed_at  INTEGER,
-    expires_at    INTEGER NOT NULL,
-    created_at    INTEGER NOT NULL
+    state           TEXT PRIMARY KEY,
+    telegram_id     TEXT,
+    telegram_name   TEXT,
+    telegram_user   TEXT,
+    confirmed_at    INTEGER,
+    expires_at      INTEGER NOT NULL,
+    created_at      INTEGER NOT NULL
   );
 `);
 
-const insertState = db.prepare(`
-  INSERT INTO tg_auth (state, expires_at, created_at)
-  VALUES (?, ?, ?)
-`);
-const confirmState = db.prepare(`
-  UPDATE tg_auth SET telegram_id = ?, telegram_name = ?, telegram_user = ?, confirmed_at = ?
-  WHERE state = ? AND confirmed_at IS NULL AND expires_at > ?
-`);
+const insertState = db.prepare(`INSERT INTO tg_auth (state, expires_at, created_at) VALUES (?, ?, ?)`);
+const confirmState = db.prepare(`UPDATE tg_auth SET telegram_id = ?, telegram_name = ?, telegram_user = ?, confirmed_at = ? WHERE state = ? AND confirmed_at IS NULL AND expires_at > ?`);
 const getState = db.prepare(`SELECT * FROM tg_auth WHERE state = ?`);
 const consumeState = db.prepare(`DELETE FROM tg_auth WHERE state = ?`);
 
-const STATE_TTL_MS = 10 * 60 * 1000; // 10 min
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 минут
 
 export function createTgAuthState() {
   const state = nanoid(24);
@@ -44,7 +33,7 @@ export function pollTgAuth(state) {
   if (!row) return { status: "unknown" };
   if (row.expires_at < now()) return { status: "expired" };
   if (!row.confirmed_at) return { status: "pending" };
-  // consume on read
+  
   consumeState.run(state);
   return {
     status: "confirmed",
@@ -60,6 +49,7 @@ export function startBot() {
     console.log("[tgbot] TELEGRAM_BOT_TOKEN not set — bot disabled");
     return;
   }
+
   bot = new Bot(token);
 
   bot.command("start", async (ctx) => {
@@ -84,9 +74,20 @@ export function startBot() {
     }
   });
 
-  bot.catch((err) => console.error("[tgbot]", err));
-  bot.start({ drop_pending_updates: true });
-  console.log("[tgbot] started");
+  // Глобальный перехватчик ошибок для логирования
+  bot.catch((err) => {
+    console.error("[tgbot] Runtime error:", err);
+  });
+
+  // Запуск с защитой от падения всего сервера
+  bot.start({ 
+    drop_pending_updates: true,
+    onStart: (botInfo) => console.log(`[tgbot] started as @${botInfo.username}`)
+  }).catch((err) => {
+    console.error("[tgbot] Fatal error on start:", err);
+    // Ждем 5 секунд, чтобы успеть залогировать и перезапустить процесс
+    setTimeout(() => process.exit(1), 5000);
+  });
 }
 
 export function botUsername() {
