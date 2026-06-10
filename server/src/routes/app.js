@@ -2,27 +2,49 @@ import { nanoid } from "nanoid";
 import { db, now } from "../db.js";
 import * as push from "../services/webpush.js";
 
-// --- queries ---
-const listServers = db.prepare("SELECT * FROM servers ORDER BY position ASC, name ASC");
-const listConfigsForUser = db.prepare("SELECT * FROM configs WHERE user_id = ? AND is_active = 1 ORDER BY updated_at DESC");
-const listNotifications = db.prepare(`
-  SELECT * FROM notifications
-  WHERE audience = 'all' OR audience = ?
-  ORDER BY created_at DESC LIMIT 50
-`);
-const getUrgent = db.prepare("SELECT * FROM urgent_message WHERE id = 1");
-const insertPushSub = db.prepare(`
-  INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(endpoint) DO UPDATE SET
-    user_id = excluded.user_id,
-    p256dh = excluded.p256dh,
-    auth = excluded.auth,
-    failures = 0
-`);
-const removePushSubByEndpoint = db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?");
+// 1. Оставляем только пустые переменные
+let listServers;
+let listConfigsForUser;
+let listNotifications;
+let getUrgent;
+let insertPushSub;
+let removePushSubByEndpoint;
+
+// 2. Функция отложенной инициализации
+function initStatements() {
+  if (listServers) return; // Защита от повторного выполнения
+
+  listServers = db.prepare("SELECT * FROM servers ORDER BY position ASC, name ASC");
+  
+  listConfigsForUser = db.prepare("SELECT * FROM configs WHERE user_id = ? AND is_active = 1 ORDER BY updated_at DESC");
+  
+  listNotifications = db.prepare(`
+    SELECT * FROM notifications
+    WHERE audience = 'all' OR audience = ?
+    ORDER BY created_at DESC LIMIT 50
+  `);
+  
+  getUrgent = db.prepare("SELECT * FROM urgent_message WHERE id = 1");
+  
+  insertPushSub = db.prepare(`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      user_id = excluded.user_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      failures = 0
+  `);
+  
+  removePushSubByEndpoint = db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?");
+}
 
 export default async function appRoutes(fastify) {
+  // 3. Вызываем инициализацию перед обработкой любого роута в этом файле
+  fastify.addHook('onRequest', async (request, reply) => {
+     initStatements();
+  });
+
   // Public-ish (auth required everywhere — VPN is private)
 
   fastify.get("/status", { preHandler: fastify.requireAuth }, async () => {
