@@ -5,7 +5,11 @@ services:
       dockerfile: Dockerfile
     container_name: tao-vpn
     restart: unless-stopped
-    
+  
+    ports:
+      - target: 9797
+        published: 9797
+        mode: host
     volumes:
       - tao_data:/app/data
     environment:
