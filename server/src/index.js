@@ -32,7 +32,7 @@ await app.register(rateLimit, {
   max: 60, timeWindow: "1 minute",
   allowList: (req) => req.url.startsWith("/api/admin/"),
 });
-await app.register(authPlugin);
+await authPlugin(app);
 
 app.get("/api/health", async () => ({ ok: true, t: Date.now() }));
 
