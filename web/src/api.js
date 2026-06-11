@@ -18,7 +18,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
   if (!res.ok) {
-    const err = new Error(data.error || `http_${res.status}`);
+    const err = new Error(data.error || data.message || `http_${res.status}`);
     err.status = res.status;
     err.data = data;
     throw err;
@@ -47,9 +47,17 @@ export const api = {
   subscribePush:   (subscription) => request("/push/subscribe", { method: "POST", body: { subscription } }),
   unsubscribePush: (endpoint) => request("/push/unsubscribe", { method: "POST", body: { endpoint } }),
 
-  // matrix (TAO SPACE integration)
+  // matrix
   matrixCredentials: () => request("/matrix/credentials"),
   matrixStatus:      () => request("/matrix/status"),
   matrixSyncProfile: (display_name, avatar_mxc) =>
     request("/matrix/sync-profile", { method: "POST", body: { display_name, avatar_mxc } }),
+
+  // admin
+  adminUsers:        () => request("/admin/users"),
+  adminInvites:      () => request("/admin/invites"),
+  adminCreateInvite: (body) => request("/admin/invites", { method: "POST", body }),
+  adminNotify:       (body) => request("/admin/notifications", { method: "POST", body }),
+  adminUrgent:       (body) => request("/admin/urgent", { method: "PUT", body }),
+  adminClearUrgent:  () => request("/admin/urgent", { method: "DELETE" }),
 };

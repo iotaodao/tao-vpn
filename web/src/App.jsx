@@ -5,21 +5,22 @@ import { CosmicBackground, Toast, NavItem } from "./components/ui.jsx";
 import { GeodesicSphere } from "./components/GeodesicSphere.jsx";
 import { Login } from "./screens/Login.jsx";
 import { Status } from "./screens/Status.jsx";
-import { Configs, Alerts, Account } from "./screens/Other.jsx";
+import { Configs, Alerts, Account, Admin } from "./screens/Other.jsx";
 import { Chat } from "./screens/Chat.jsx";
-import { stopMatrix } from "./matrix.js";
+import { stopMatrix, onMatrixNotification } from "./matrix.js";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [bootChecked, setBootChecked] = useState(false);
-
   const [tab, setTab] = useState("status");
   const [statusData, setStatusData] = useState({ servers: [], urgent: { active: false } });
   const [configs, setConfigs] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [toast, setToast] = useState({ visible: false, message: "" });
   const [urgentDismissed, setUrgentDismissed] = useState(false);
+  const [chatBadge, setChatBadge] = useState(false);
 
+  // Boot
   useEffect(() => {
     (async () => {
       const t = getToken();
@@ -35,6 +36,32 @@ export default function App() {
     })();
   }, []);
 
+  // Matrix notification → show badge on Chat tab
+  useEffect(() => {
+    onMatrixNotification(({ roomId }) => {
+      if (tab !== "chat") setChatBadge(true);
+    });
+  }, [tab]);
+
+  // Clear chat badge when switching to chat
+  useEffect(() => {
+    if (tab === "chat") setChatBadge(false);
+  }, [tab]);
+
+  // SW notification click → switch tab
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handler = (event) => {
+      const data = event.data;
+      if (data?.type === "notification-click") {
+        if (data.tab) setTab(data.tab);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+  }, []);
+
+  // Data refresh
   const refresh = useCallback(async () => {
     if (!user) return;
     try {
@@ -96,6 +123,7 @@ export default function App() {
   const onlineCount = statusData.servers.filter((s) => s.status === "online").length;
   const totalServers = statusData.servers.length;
   const showUrgent = statusData.urgent?.active && !urgentDismissed;
+  const isAdmin = user.is_admin;
 
   return (
     <div style={appShell()}>
@@ -120,7 +148,7 @@ export default function App() {
         </div>
       </header>
 
-      <main style={{ padding: tab === "chat" ? "0" : "18px 16px 100px", position: "relative", zIndex: 1, animation: "fadeUp 0.4s ease" }}>
+      <main style={{ padding: tab === "chat" ? "12px 16px 100px" : "18px 16px 100px", position: "relative", zIndex: 1, animation: "fadeUp 0.4s ease" }}>
         {tab === "status" && (
           <Status
             data={{ ...statusData, urgent: showUrgent ? statusData.urgent : { active: false } }}
@@ -132,14 +160,18 @@ export default function App() {
         {tab === "chat" && <Chat onToast={showToast} />}
         {tab === "alerts" && <Alerts notifications={notifications} onToast={showToast} />}
         {tab === "account" && <Account user={user} onLogout={logout} />}
+        {tab === "admin" && <Admin onToast={showToast} />}
       </main>
 
       <nav style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "rgba(5,11,26,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "6px 0 env(safe-area-inset-bottom, 8px)", zIndex: 50 }}>
         <NavItem icon="◈" label="Статус" active={tab === "status"} onClick={() => setTab("status")} badge={showUrgent} />
         <NavItem icon="⚿" label="Конфиги" active={tab === "configs"} onClick={() => setTab("configs")} />
-        <NavItem icon="💬" label="Чат" active={tab === "chat"} onClick={() => setTab("chat")} />
+        <NavItem icon="💬" label="Чат" active={tab === "chat"} onClick={() => setTab("chat")} badge={chatBadge} />
         <NavItem icon="⚡" label="Алерты" active={tab === "alerts"} onClick={() => setTab("alerts")} />
-        <NavItem icon="◐" label="Аккаунт" active={tab === "account"} onClick={() => setTab("account")} />
+        {isAdmin
+          ? <NavItem icon="⚙" label="Админ" active={tab === "admin"} onClick={() => setTab("admin")} />
+          : <NavItem icon="◐" label="Аккаунт" active={tab === "account"} onClick={() => setTab("account")} />
+        }
       </nav>
     </div>
   );

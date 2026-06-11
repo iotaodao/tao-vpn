@@ -1,25 +1,18 @@
-// TAO VPN Service Worker
-const VERSION = "v1";
+// TAO SuperApp Service Worker — Unified Push
+const VERSION = "v2";
 const CACHE_STATIC = `tao-static-${VERSION}`;
-const CACHE_API = `tao-api-${VERSION}`;
 
-const STATIC_ASSETS = [
-  "/",
-  "/manifest.webmanifest",
-  "/icons/icon.svg",
-];
+const STATIC_ASSETS = ["/", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_STATIC).then((c) => c.addAll(STATIC_ASSETS))
-  );
+  event.waitUntil(caches.open(CACHE_STATIC).then((c) => c.addAll(STATIC_ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_STATIC && k !== CACHE_API).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_STATIC).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -29,15 +22,14 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
 
-  // API: network-first, cache fallback (so configs are available offline)
-  if (url.pathname.startsWith("/api/")) {
-    if (url.pathname === "/api/configs" || url.pathname === "/api/status" || url.pathname === "/api/notifications") {
-      event.respondWith(staleWhileRevalidate(event.request, CACHE_API));
-    }
-    return; // other API calls go to network as usual
-  }
+  // API calls — always network, never cache
+  // (cached API without auth tokens causes 500 errors)
+  if (url.pathname.startsWith("/api/")) return;
 
-  // App shell: cache-first
+  // Matrix calls — never cache
+  if (url.pathname.startsWith("/_matrix/")) return;
+
+  // App shell — cache-first with network fallback
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request).then((cached) =>
@@ -54,41 +46,55 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const networkPromise = fetch(request).then((res) => {
-    if (res.ok) cache.put(request, res.clone());
-    return res;
-  }).catch(() => cached);
-  return cached || networkPromise;
-}
+// ═══════════════════════════════════════════════════════
+// PUSH — Unified handler for VPN alerts + Matrix
+// ═══════════════════════════════════════════════════════
 
-// --- Push ---
 self.addEventListener("push", (event) => {
   let data = { title: "TAO VPN", body: "" };
   try { data = event.data ? event.data.json() : data; } catch {}
+
   const options = {
     body: data.body || "",
     icon: "/icons/icon-192.png",
     badge: "/icons/badge.png",
     tag: data.tag || "tao-vpn",
     renotify: true,
-    data: { url: data.url || "/" },
+    data: {
+      url: data.url || "/",
+      tab: data.tab || null,
+      roomId: data.roomId || null,
+    },
     vibrate: [80, 40, 80],
   };
+
+  // Different styling for Matrix vs VPN notifications
+  if (data.tag?.startsWith("matrix-")) {
+    options.vibrate = [60, 30, 60];
+  }
+
   event.waitUntil(self.registration.showNotification(data.title || "TAO VPN", options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const { url, tab, roomId } = event.notification.data || {};
+
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then((list) => {
+      // Try to focus existing window
       for (const c of list) {
-        if (c.url.includes(url) && "focus" in c) return c.focus();
+        if ("focus" in c) {
+          c.focus();
+          // Send message to switch tab / open room
+          if (tab || roomId) {
+            c.postMessage({ type: "notification-click", tab, roomId });
+          }
+          return;
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
+      // Open new window
+      if (self.clients.openWindow) return self.clients.openWindow(url || "/");
     })
   );
 });
