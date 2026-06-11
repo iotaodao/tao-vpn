@@ -43,7 +43,13 @@ export const api = {
   notifications: () => request("/notifications"),
 
   // push
-  vapidKey:      () => request("/push/vapid"),
-  subscribePush: (subscription) => request("/push/subscribe", { method: "POST", body: { subscription } }),
+  vapidKey:        () => request("/push/vapid"),
+  subscribePush:   (subscription) => request("/push/subscribe", { method: "POST", body: { subscription } }),
   unsubscribePush: (endpoint) => request("/push/unsubscribe", { method: "POST", body: { endpoint } }),
+
+  // matrix (TAO SPACE integration)
+  matrixCredentials: () => request("/matrix/credentials"),
+  matrixStatus:      () => request("/matrix/status"),
+  matrixSyncProfile: (display_name, avatar_mxc) =>
+    request("/matrix/sync-profile", { method: "POST", body: { display_name, avatar_mxc } }),
 };

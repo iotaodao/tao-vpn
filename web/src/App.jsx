@@ -6,6 +6,8 @@ import { GeodesicSphere } from "./components/GeodesicSphere.jsx";
 import { Login } from "./screens/Login.jsx";
 import { Status } from "./screens/Status.jsx";
 import { Configs, Alerts, Account } from "./screens/Other.jsx";
+import { Chat } from "./screens/Chat.jsx";
+import { stopMatrix } from "./matrix.js";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -18,7 +20,6 @@ export default function App() {
   const [toast, setToast] = useState({ visible: false, message: "" });
   const [urgentDismissed, setUrgentDismissed] = useState(false);
 
-  // Boot: try to restore session
   useEffect(() => {
     (async () => {
       const t = getToken();
@@ -34,7 +35,6 @@ export default function App() {
     })();
   }, []);
 
-  // Data loading when authed
   const refresh = useCallback(async () => {
     if (!user) return;
     try {
@@ -65,6 +65,7 @@ export default function App() {
 
   const logout = async () => {
     try { await api.logout(); } catch {}
+    stopMatrix();
     setToken(null);
     setUser(null);
     setTab("status");
@@ -119,7 +120,7 @@ export default function App() {
         </div>
       </header>
 
-      <main style={{ padding: "18px 16px 100px", position: "relative", zIndex: 1, animation: "fadeUp 0.4s ease" }}>
+      <main style={{ padding: tab === "chat" ? "0" : "18px 16px 100px", position: "relative", zIndex: 1, animation: "fadeUp 0.4s ease" }}>
         {tab === "status" && (
           <Status
             data={{ ...statusData, urgent: showUrgent ? statusData.urgent : { active: false } }}
@@ -128,6 +129,7 @@ export default function App() {
           />
         )}
         {tab === "configs" && <Configs configs={configs} onCopy={(name) => showToast(`${name} скопирован`)} />}
+        {tab === "chat" && <Chat onToast={showToast} />}
         {tab === "alerts" && <Alerts notifications={notifications} onToast={showToast} />}
         {tab === "account" && <Account user={user} onLogout={logout} />}
       </main>
@@ -135,6 +137,7 @@ export default function App() {
       <nav style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "rgba(5,11,26,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "6px 0 env(safe-area-inset-bottom, 8px)", zIndex: 50 }}>
         <NavItem icon="◈" label="Статус" active={tab === "status"} onClick={() => setTab("status")} badge={showUrgent} />
         <NavItem icon="⚿" label="Конфиги" active={tab === "configs"} onClick={() => setTab("configs")} />
+        <NavItem icon="💬" label="Чат" active={tab === "chat"} onClick={() => setTab("chat")} />
         <NavItem icon="⚡" label="Алерты" active={tab === "alerts"} onClick={() => setTab("alerts")} />
         <NavItem icon="◐" label="Аккаунт" active={tab === "account"} onClick={() => setTab("account")} />
       </nav>
@@ -158,7 +161,7 @@ function GlobalStyles() {
       @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
       * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
       ::-webkit-scrollbar { display: none; }
-      input::placeholder { color: rgba(224,234,255,0.25); }
+      input::placeholder, textarea::placeholder { color: rgba(224,234,255,0.25); }
     `}</style>
   );
 }
